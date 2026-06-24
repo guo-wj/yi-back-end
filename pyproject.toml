@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yi-backend"
+version = "0.1.0"
+description = "易鉴 AI 玄学平台后端"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "openai>=1.51.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.9.0",
+    "lunardate>=0.2.0",
+    "lunar-python>=1.4.8",
+    "redis>=8.0.0",
+    "pyjwt>=2.13.0",
+    "email-validator>=2.0",
+]
+
+[tool.setuptools]
+py-modules = ["app", "config"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["routers", "services", "utils"]
