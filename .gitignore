@@ -11,3 +11,4 @@ wheels/
 
 # SQLite 数据库
 *.db
+.env
