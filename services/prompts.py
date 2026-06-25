@@ -197,12 +197,35 @@ def _palm_hand_fields(hand_side: str) -> str:
         f'"hand_detected":true,"hand_side":"{hand_side}",'
         '"image_quality":"clear|blurry|shadowed",'
         '"palm_shape":"方形|长方形|修长|其他",'
-        '"lines":{"life":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向"},'
-        '"heart":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向"},'
-        '"head":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向"}},'
+        '"palm_type":"金形掌|木形掌|水形掌|火形掌|土形掌|未知",'
+        '"complexion":"红润|苍白|暗沉|偏黄|未知",'
+        '"lines":{"life":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向简述"},'
+        '"heart":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向简述"},'
+        '"head":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向简述"}},'
         '"mounts":{"venus":"平坦|适中|隆起","jupiter":"平坦|适中|隆起","saturn":"平坦|适中|隆起",'
         '"apollo":"平坦|适中|隆起","mercury":"平坦|适中|隆起"},'
         '"special_marks":[],"one_line_summary":"20字内客观描述"}'
+    )
+
+
+def _palm_structured_interpret_fields() -> str:
+    line = (
+        '{"key":"life|head|heart","attribute":"2-4字特征词如深长|清晰|柔缓",'
+        '"score":1-5,"description":"60-90字该线文化解读，不作医疗断语"}'
+    )
+    mount = (
+        '{"key":"venus|jupiter|saturn|apollo|mercury",'
+        '"keywords":["2字词","2字词"],'
+        '"status":"旺|盛|匀|平|弱",'
+        '"description":"30-50字该丘文化解读，基于隆起程度与位置"}'
+    )
+    return (
+        '"palm_type":"金形掌|木形掌|水形掌|火形掌|土形掌",'
+        '"complexion":"红润|苍白|暗沉|偏黄|其他简述",'
+        '"primary_hand":"left|right",'
+        '"overview":"掌象综述，100-150字，综合左右掌形气质与整体印象",'
+        f'"lines":[{line},{line},{line}],'
+        f'"mounts":[{mount},{mount},{mount},{mount},{mount}]'
     )
 
 
@@ -213,8 +236,9 @@ def _palm_single_hand_schema(hand_side: str) -> str:
 def palm_interpret_system() -> str:
     return (
         SYSTEM_BASE
-        + "当前任务：掌纹（手相）文化解读。根据已给的结构化掌纹特征进行解读，"
+        + "当前任务：掌纹（手相）文化解读。根据已给的结构化掌纹特征输出 JSON，"
         "不得臆造特征中未出现的线条或标记；强调文化参考与心态建议，不作医疗诊断或绝对命运断语。"
+        "只输出 JSON，无 markdown、无说明。"
     )
 
 
@@ -226,9 +250,14 @@ def palm_interpret_user(*, left_features: str, right_features: str) -> str:
         "【右手特征（程序提取，请据此解读）】",
         right_features,
         "",
-        "请输出结构化掌纹解读（可用小标题）：①掌形与整体气质 ②三大主线 ③五丘"
-        "④左右手差异 ⑤心态与行事参考 ⑥一句赠言。"
-        "用语中性温和，避免绝对化，总字数 350 字以内。",
+        "请只输出 JSON（无 markdown 代码块），字段：",
+        "{" + _palm_structured_interpret_fields() + "}",
+        "lines 须含 life、head、heart 各一条且 key 不重复；"
+        "mounts 须含 venus、jupiter、saturn、apollo、mercury 各一条且 key 不重复；"
+        "mounts.status 反映该丘隆起与饱满程度（隆起→旺/盛，适中→匀/盛，平坦→平/弱）；"
+        "primary_hand 表示惯用手/主看之手（通常右手）；"
+        "score 为 1-5 整数，表该线形质优劣的文化参考，非医学指标；"
+        "解读须严格基于特征，不得臆造未见线条。",
     ]
     return "\n".join(parts)
 
@@ -244,15 +273,11 @@ def palm_analyze_system() -> str:
 
 
 def palm_analyze_dual_user() -> str:
-    hand = (
-        '{"hand_detected":true,"one_line_summary":"20字内",'
-        '"palm_shape":"方形|长方形|修长|其他",'
-        '"lines":{"life":"简述","heart":"简述","head":"简述"}}'
-    )
     return (
         "图1=左手，图2=右手。输出 JSON：\n"
-        f'{{"left":{hand},"right":{hand},'
-        '"content":"Markdown解读，小标题：①掌形气质②三线③五丘④左右差异⑤建议⑥赠言，350字内"}}'
+        '{"left":' + _palm_hand_fields("左手") + ',"right":' + _palm_hand_fields("右手") + ","
+        + _palm_structured_interpret_fields()
+        + "}"
     )
 
 
@@ -320,11 +345,43 @@ def face_feature_user(*, slots: list[str]) -> str:
     return "\n".join(lines)
 
 
+def _face_structured_interpret_fields() -> str:
+    stop = (
+        '{"key":"upper|middle|lower","attribute":"2-4字特征词如丰隆|挺正|温厚",'
+        '"score":1-5,"description":"60-100字该停文化解读，不作医疗断语"}'
+    )
+    organ = (
+        '{"key":"brow|eye|nose|mouth|ear",'
+        '"keywords":["2字词","2字词"],'
+        '"status":"旺|盛|匀|平|弱",'
+        '"description":"40-60字该官文化解读，基于五官形态"}'
+    )
+    return (
+        '"face_type":"金形面|木形面|水形面|火形面|土形面",'
+        '"complexion":"红润|明润|苍白|暗沉|偏黄|其他简述",'
+        '"overview":"面相综述，120-180字，综合三停五官与整体气质印象",'
+        f'"stops":[{stop},{stop},{stop}],'
+        f'"organs":[{organ},{organ},{organ},{organ},{organ}]'
+    )
+
+
+def _face_structured_rules() -> str:
+    return (
+        "stops 须含 upper、middle、lower 各一条且 key 不重复"
+        "（上停=发际至眉主早年，中停=眉至鼻底主中年，下停=鼻底至颏主晚年）；"
+        "organs 须含 brow、eye、nose、mouth、ear 各一条且 key 不重复；"
+        "organs.status 反映该官的端正与饱满程度；"
+        "score 为 1-5 整数，表该停形质的文化参考，非医学指标；"
+        "解读须严格基于特征，不得臆造未见部位。"
+    )
+
+
 def face_interpret_system() -> str:
     return (
         SYSTEM_BASE
-        + "当前任务：面相文化解读。根据已给的结构化面部特征进行解读，"
+        + "当前任务：面相文化解读。根据已给的结构化面部特征输出 JSON，"
         "不得臆造特征中未出现的部位或标记；强调文化参考与心态建议，不作医疗诊断或绝对命运断语。"
+        "只输出 JSON，无 markdown、无说明。"
     )
 
 
@@ -333,9 +390,9 @@ def face_interpret_user(*, features: str) -> str:
         "【面相特征（程序提取，请据此解读）】",
         features,
         "",
-        "请输出结构化面相解读（可用小标题）：①脸型与三停 ②五官要点（眉、眼、鼻、口、耳）"
-        "③气色与神态 ④性格气质倾向（文化参考） ⑤心态与行事参考 ⑥一句赠言。"
-        "用语中性温和，避免绝对化，总字数 350 字以内。",
+        "请只输出 JSON（无 markdown 代码块），字段：",
+        "{" + _face_structured_interpret_fields() + "}",
+        _face_structured_rules(),
     ]
     return "\n".join(parts)
 
@@ -343,7 +400,7 @@ def face_interpret_user(*, features: str) -> str:
 def face_analyze_system() -> str:
     return (
         SYSTEM_BASE
-        + "当前任务：观察面部照片并一次输出 JSON（含特征与解读）。"
+        + "当前任务：观察面部照片并一次输出 JSON（含特征与结构化解读）。"
         "无清晰正脸时 face_detected=false。"
         "解读须基于所见特征，文化参考、温和表述，不作医疗或绝对断语。"
         "只输出 JSON，无 markdown 代码块。"
@@ -369,8 +426,8 @@ def face_analyze_user(*, slots: list[str]) -> str:
         '"face_detected":true,'
         f'"per_image":[{per}],'
         '"combined":{"face_shape":"圆形|方形|长形|鹅蛋|其他","one_line_summary":"综合20字内"},'
-        '"content":"Markdown解读，小标题：①脸型三停②五官③气色④气质⑤建议⑥赠言，350字内"'
-        "}"
+        + _face_structured_interpret_fields()
+        + "}"
     )
-    lines.append("per_image 数量与照片一致；综合特征以正面为主。")
+    lines.append("per_image 数量与照片一致；综合特征以正面为主。" + _face_structured_rules())
     return "\n".join(lines)

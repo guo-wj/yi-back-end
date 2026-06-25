@@ -50,14 +50,15 @@ class Settings:
     palm_max_image_bytes: int = int(os.getenv("PALM_MAX_IMAGE_BYTES", "5242880"))
     palm_image_max_side: int = int(os.getenv("PALM_IMAGE_MAX_SIDE", "768"))
     palm_jpeg_quality: int = int(os.getenv("PALM_JPEG_QUALITY", "75"))
-    # True：一次智谱调用同时出特征+解读（更快）；False：智谱提特征 + DeepSeek 解读（更稳）
-    vision_single_stage: bool = os.getenv("VISION_SINGLE_STAGE", "true").lower() in (
+    # True：一次智谱调用同时出特征+解读（慢，不推荐）；False：并行提特征 + DeepSeek 解读
+    vision_single_stage: bool = os.getenv("VISION_SINGLE_STAGE", "false").lower() in (
         "1",
         "true",
         "yes",
     )
-    vision_max_output_tokens: int = int(os.getenv("VISION_MAX_OUTPUT_TOKENS", "1100"))
-    interpret_max_tokens: int = int(os.getenv("INTERPRET_MAX_TOKENS", "650"))
+    palm_feature_max_tokens: int = int(os.getenv("PALM_FEATURE_MAX_TOKENS", "512"))
+    vision_max_output_tokens: int = int(os.getenv("VISION_MAX_OUTPUT_TOKENS", "1800"))
+    interpret_max_tokens: int = int(os.getenv("INTERPRET_MAX_TOKENS", "1000"))
 
 
 settings = Settings()
