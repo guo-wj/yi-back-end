@@ -1,9 +1,10 @@
 import asyncio
 from typing import Any, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from services.auth_service import user_from_token
 from services.image_utils import normalize_image_data_url_async
 from services.palm_extractor import (
     analyze_palms,
@@ -11,8 +12,18 @@ from services.palm_extractor import (
     feature_summary,
     interpret_palm_features,
 )
+from services.points_service import check_and_record_extract
 
 router = APIRouter()
+
+
+def _require_user(authorization: str | None) -> dict:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise ValueError("未登录，请先登录。")
+    token = authorization[7:].strip()
+    if not token:
+        raise ValueError("未登录，请先登录。")
+    return user_from_token(token)
 
 PalmLineKey = Literal["life", "head", "heart"]
 PalmMountKey = Literal["venus", "jupiter", "saturn", "apollo", "mercury"]
@@ -91,8 +102,19 @@ async def _normalize_palm_images(body: PalmImagesRequest) -> tuple[str, str]:
 
 
 @router.post("/extract", response_model=PalmExtractResponse)
-async def extract_palm(body: PalmImagesRequest) -> PalmExtractResponse:
-    """并行提取左右掌纹特征（约 5–10s）。前端可先展示掌型/气色，再调 /interpret。"""
+async def extract_palm(
+    body: PalmImagesRequest,
+    authorization: str | None = Header(default=None),
+) -> PalmExtractResponse:
+    """并行提取左右掌纹特征（约 5–10s）；需登录，计入每日识别额度。"""
+    user = await asyncio.to_thread(_require_user, authorization)
+    try:
+        await check_and_record_extract(user["id"], "palm")
+    except ValueError as exc:
+        if "上限" in str(exc):
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise
+
     left_url, right_url = await _normalize_palm_images(body)
     result = await extract_palms(left_url, right_url)
     _ensure_hand_detected(result["left_features"], "左手")

@@ -56,6 +56,37 @@ async def interpret_slip(
     return await chat_completion(prompts.lottery_interpret_system(), user)
 
 
+async def draw_only(
+    *,
+    solar_date: date | None = None,
+) -> tuple[SlipRecord, DrawContext]:
+    """仅随机出签，不调 LLM。"""
+    d = solar_date or date.today()
+    ctx = _build_context(d)
+    slip = draw_slip()
+    return slip, ctx
+
+
+async def interpret_only(
+    *,
+    slip_id: int,
+    solar_date: date | None = None,
+    name: str | None = None,
+    focus: str | None = None,
+    question: str | None = None,
+) -> tuple[SlipRecord, DrawContext, str]:
+    """对已确定的签做 AI 解签。"""
+    from services.lottery_data import slip_by_id
+
+    slip = slip_by_id(slip_id)
+    if not slip:
+        raise ValueError("签号无效，请重新摇签。")
+    d = solar_date or date.today()
+    ctx = _build_context(d)
+    text = await interpret_slip(slip, ctx, name=name, focus=focus, question=question)
+    return slip, ctx, text
+
+
 async def draw_and_interpret(
     *,
     solar_date: date | None,

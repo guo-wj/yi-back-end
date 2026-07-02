@@ -157,7 +157,11 @@ async def auth_send_code(body: SendCodeRequest) -> SendCodeResponse:
 
 @router.post("/verify-code", response_model=VerifyCodeResponse)
 async def auth_verify_code(body: VerifyCodeRequest) -> VerifyCodeResponse:
+    from services.points_service import setup_new_user
+
     user, is_new, token = await verify_code(body.email, body.code)
+    if is_new:
+        await setup_new_user(user["id"], None)
     return VerifyCodeResponse(
         token=token,
         is_new_user=is_new,
@@ -168,11 +172,14 @@ async def auth_verify_code(body: VerifyCodeRequest) -> VerifyCodeResponse:
 @router.post("/register", response_model=AuthTokenResponse)
 async def auth_register(body: AccountRegisterRequest) -> AuthTokenResponse:
     """注册：手机号或邮箱 + 密码，成功后返回 JWT 与用户信息。"""
+    from services.points_service import setup_new_user
+
     user, token = await register_account(
         body.resolved_account(),
         body.password,
         body.invite_code,
     )
+    await setup_new_user(user["id"], body.invite_code)
     return _auth_response(user, token)
 
 

@@ -95,29 +95,44 @@ def cast_from_indices(
     }
 
 
+def resolve_cast_time(client_time: str | None) -> datetime:
+    """解析前端传来的本地公历时间；无效时回退服务端当前时间。"""
+    if client_time:
+        raw = client_time.strip()
+        for candidate in (raw, raw[:19]):
+            try:
+                return datetime.fromisoformat(candidate)
+            except ValueError:
+                continue
+    return datetime.now()
+
+
 def cast_by_time(dt: datetime | None = None) -> dict:
-    """时间起卦：农历年月日 + 时辰地支序数（邵雍法）。"""
+    """时间起卦：农历年月日 + 时辰地支序数（邵雍法）；动爻另加分、秒以应占时之刻。"""
     dt = dt or datetime.now()
     ld = LunarDate.fromSolarDate(dt.year, dt.month, dt.day)
     year_n = _year_zhi_number(ld.year)
     month_n = ld.month
     day_n = ld.day
     hour_n = _hour_zhi_number(dt.hour)
+    minute_n = dt.minute + 1
+    second_n = dt.second + 1
 
     upper_sum = year_n + month_n + day_n
     lower_sum = upper_sum + hour_n
     upper_idx = _mod8(upper_sum)
     lower_idx = _mod8(lower_sum)
-    moving = _mod6(lower_sum)
+    moving_sum = lower_sum + minute_n + second_n
+    moving = _mod6(moving_sum)
 
     hour_branch = DI_ZHI[_hour_branch_index(dt.hour)]
     leap = "闰" if ld.isLeapMonth else ""
     detail = (
-        f"公历 {dt.strftime('%Y-%m-%d %H:%M')}，"
+        f"公历 {dt.strftime('%Y-%m-%d %H:%M:%S')}，"
         f"农历 {ld.year}年{leap}{ld.month}月{ld.day}日 {hour_branch}时；"
         f"上卦数=({year_n}+{month_n}+{day_n}) mod 8 → {upper_idx}（{_trigram_from_index(upper_idx)}），"
         f"下卦数=({year_n}+{month_n}+{day_n}+{hour_n}) mod 8 → {lower_idx}（{_trigram_from_index(lower_idx)}），"
-        f"动爻=({year_n}+{month_n}+{day_n}+{hour_n}) mod 6 → 第{moving}爻"
+        f"动爻=({year_n}+{month_n}+{day_n}+{hour_n}+{minute_n}+{second_n}) mod 6 → 第{moving}爻"
     )
     return cast_from_indices(
         lower_idx=lower_idx,

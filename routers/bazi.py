@@ -1,5 +1,7 @@
 from datetime import date, datetime
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -75,7 +77,6 @@ class BaziRequest(BaseModel):
         invalid = [f for f in v if f not in allowed]
         if invalid:
             raise ValueError(f"关注事项仅支持：{'、'.join(allowed)}。")
-        # 去重保序
         seen: set[str] = set()
         deduped: list[str] = []
         for item in v:
@@ -91,12 +92,19 @@ class BaziRequest(BaseModel):
         return self
 
 
-class BaziResponse(BaseModel):
+class BaziChartResponse(BaseModel):
     birth_solar: str = Field(..., description="归一化后的公历出生日期")
     birth_hour_label: str = Field(..., description="出生时辰，如「午时」")
     lunar_summary: str = Field(..., description="农历与干支摘要")
     pillars_hint: str = Field(..., description="四柱参考（程序推算）")
     focus: list[str] = Field(..., description="本次解读的关注事项")
+
+
+class BaziInterpretResponse(BaseModel):
+    content: str = Field(..., description="命理解读正文")
+
+
+class BaziResponse(BaziChartResponse):
     content: str = Field(..., description="命理解读正文")
 
 
@@ -123,15 +131,52 @@ def _birth_input_label(body: BaziRequest) -> str:
     return f"{cal}{body.birth_year}年{leap}{body.birth_month}月{body.birth_day}日"
 
 
-@router.post("/analyze", response_model=BaziResponse)
-async def bazi_analyze(body: BaziRequest) -> BaziResponse:
+def _build_chart(body: BaziRequest) -> tuple[date, datetime, str, str, str]:
     birth_date = _resolve_birth_date(body)
     hour = shi_chen_to_hour(body.birth_hour)
     birth_dt = datetime(birth_date.year, birth_date.month, birth_date.day, hour)
-
     lunar_summary = format_lunar_display(birth_date)
     pillars = four_pillars_hint(birth_dt)
     hour_label = f"{body.birth_hour}时"
+    return birth_date, birth_dt, lunar_summary, pillars, hour_label
+
+
+@router.post("/chart", response_model=BaziChartResponse)
+async def bazi_chart(body: BaziRequest) -> BaziChartResponse:
+    """四柱排盘（不含 LLM）。"""
+    birth_date, _, lunar_summary, pillars, hour_label = _build_chart(body)
+    return BaziChartResponse(
+        birth_solar=birth_date.isoformat(),
+        birth_hour_label=hour_label,
+        lunar_summary=lunar_summary,
+        pillars_hint=pillars,
+        focus=body.focus,
+    )
+
+
+@router.post("/interpret", response_model=BaziInterpretResponse)
+async def bazi_interpret(body: BaziRequest) -> BaziInterpretResponse:
+    """AI 断语：需登录；积分由前端先 consume 再调用。"""
+    birth_date, birth_dt, lunar_summary, pillars, hour_label = _build_chart(body)
+
+    user = prompts.bazi_user(
+        gender=body.gender,
+        birth_place=body.birth_place,
+        birth_input=_birth_input_label(body),
+        birth_solar=birth_dt.isoformat(timespec="minutes"),
+        birth_hour_label=hour_label,
+        sexual_orientation=body.sexual_orientation,
+        pillars_hint=pillars,
+        focus=body.focus,
+    )
+    content = await chat_completion(prompts.bazi_system(), user)
+    return BaziInterpretResponse(content=content)
+
+
+@router.post("/analyze", response_model=BaziResponse)
+async def bazi_analyze(body: BaziRequest) -> BaziResponse:
+    """一次性完整解读（兼容旧版）。"""
+    birth_date, birth_dt, lunar_summary, pillars, hour_label = _build_chart(body)
 
     user = prompts.bazi_user(
         gender=body.gender,

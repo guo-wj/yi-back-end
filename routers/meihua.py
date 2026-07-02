@@ -3,7 +3,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from services import prompts
 from services.deepseek_client import chat_completion
-from services.meihua_data import cast_by_number, cast_by_time
+from datetime import datetime
+
+from services.meihua_data import cast_by_number, cast_by_time, resolve_cast_time
 
 router = APIRouter()
 
@@ -22,6 +24,10 @@ class MeihuaRequest(BaseModel):
     method: str = Field(..., description="起卦方式：time=时间起卦，number=数字起卦")
     question: str = Field(..., min_length=1, description="所问事项")
     number: int | None = Field(default=None, ge=1, description="起卦数字，仅 method=number 时必填")
+    client_time: str | None = Field(
+        default=None,
+        description="客户端本地公历时间（YYYY-MM-DDTHH:MM:SS），时间起卦时优先于服务端时钟",
+    )
 
     @model_validator(mode="after")
     def validate_method(self) -> "MeihuaRequest":
@@ -60,7 +66,7 @@ def _gua_label(gua: dict) -> str:
 
 def _cast(body: "MeihuaRequest") -> dict:
     if body.method == "time":
-        return cast_by_time()
+        return cast_by_time(resolve_cast_time(body.client_time))
     return cast_by_number(body.number)  # type: ignore[arg-type]
 
 
@@ -88,7 +94,7 @@ async def cast_meihua(body: MeihuaRequest) -> MeihuaCastOut:
 
 @router.post("/divine", response_model=MeihuaResponse)
 async def divine_meihua(body: MeihuaRequest) -> MeihuaResponse:
-    """梅花易数起卦：支持时间起卦与数字起卦，含模型解读。"""
+    """梅花易数 AI 解卦：需登录；积分由前端先 consume 再调用。"""
     cast = _cast(body)
 
     user = prompts.meihua_user(

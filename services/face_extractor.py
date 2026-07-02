@@ -295,6 +295,23 @@ def parse_structured_face_result(
     }
 
 
+async def interpret_face_features(features: dict[str, Any]) -> dict[str, Any]:
+    """基于已提取特征，由 DeepSeek 生成结构化面相解读。"""
+    from services.deepseek_client import chat_completion
+
+    user = prompts.face_interpret_user(
+        features=json.dumps(features, ensure_ascii=False, separators=(",", ":")),
+    )
+    raw = await chat_completion(
+        prompts.face_interpret_system(),
+        user,
+        temperature=0.65,
+        max_tokens=settings.interpret_max_tokens,
+    )
+    parsed = extract_json(raw, error_label="面相解读")
+    return parse_structured_face_result(parsed, features=features)
+
+
 async def analyze_face(
     image_urls: list[str],
     slots: list[FaceSlot] | None = None,
@@ -316,17 +333,5 @@ async def analyze_face(
         return structured, parsed
 
     features = await extract_face_features(image_urls, slots=effective_slots)
-    from services.deepseek_client import chat_completion
-
-    user = prompts.face_interpret_user(
-        features=json.dumps(features, ensure_ascii=False, separators=(",", ":")),
-    )
-    raw = await chat_completion(
-        prompts.face_interpret_system(),
-        user,
-        temperature=0.65,
-        max_tokens=settings.interpret_max_tokens,
-    )
-    parsed = extract_json(raw, error_label="面相解读")
-    structured = parse_structured_face_result(parsed, features=features)
+    structured = await interpret_face_features(features)
     return structured, features

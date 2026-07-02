@@ -1,9 +1,12 @@
 from fastapi import APIRouter
 
-from . import almanac, auth, bazi, face, liuyao, lottery, meihua, palm, ziwei
+from . import almanac, auth, bazi, face, liuyao, lottery, meihua, member, palm, payment, points, ziwei
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router, prefix="/auth", tags=["登录鉴权"])
+api_router.include_router(points.router, prefix="/points", tags=["积分"])
+api_router.include_router(member.router, prefix="/member", tags=["会员"])
+api_router.include_router(payment.router, prefix="/payment", tags=["支付"])
 api_router.include_router(lottery.router, prefix="/lottery", tags=["今日灵签"])
 api_router.include_router(almanac.router, prefix="/almanac", tags=["老黄历"])
 api_router.include_router(liuyao.router, prefix="/liuyao", tags=["六爻"])

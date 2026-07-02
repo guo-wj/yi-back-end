@@ -1,21 +1,34 @@
 import asyncio
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from services.auth_service import user_from_token
 from services.face_extractor import (
     analyze_face,
+    extract_face_features,
     feature_summary,
+    interpret_face_features,
     per_image_summaries,
 )
 from services.image_utils import normalize_image_data_url_async
+from services.points_service import check_and_record_extract
 
 router = APIRouter()
 
 FaceSlot = Literal["front", "side", "extra"]
 FaceStopKey = Literal["upper", "middle", "lower"]
 FaceOrganKey = Literal["brow", "eye", "nose", "mouth", "ear"]
+
+
+def _require_user(authorization: str | None) -> dict:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise ValueError("未登录，请先登录。")
+    token = authorization[7:].strip()
+    if not token:
+        raise ValueError("未登录，请先登录。")
+    return user_from_token(token)
 
 
 class FaceAnalyzeRequest(BaseModel):
@@ -71,13 +84,30 @@ class FaceOrganDetail(BaseModel):
     description: str = Field(..., description="该官文化解读正文")
 
 
-class FaceAnalyzeResponse(BaseModel):
-    content: str = Field(..., description="面相解读正文（Markdown，兼容旧版）")
+class FaceExtractResponse(BaseModel):
+    """特征提取结果：供前端展示面型/气色摘要，再调 /interpret。"""
+
+    face_type: str = Field(..., description="五行面型，如 木形面")
+    complexion: str = Field(..., description="气色，如 明润")
+    summary: str = Field(..., description="综合一行摘要")
+    summaries: list[str] = Field(..., description="各张照片一行摘要")
+    features: dict[str, Any] = Field(..., description="结构化特征（供 /interpret 回传）")
+
+
+class FaceInterpretRequest(BaseModel):
+    features: dict[str, Any] = Field(..., description="/extract 返回的 features")
+
+
+class FaceStructuredBody(BaseModel):
+    content: str = Field(..., description="面相解读正文（Markdown）")
     face_type: str = Field(..., description="五行面型，如 木形面")
     complexion: str = Field(..., description="气色，如 明润")
     overview: str = Field(..., description="面相综述")
     stops: list[FaceStopDetail] = Field(..., description="三停结构化解读")
     organs: list[FaceOrganDetail] = Field(..., description="五官结构化解读")
+
+
+class FaceAnalyzeResponse(FaceStructuredBody):
     summary: str | None = Field(default=None, description="综合一行摘要")
     summaries: list[str] | None = Field(default=None, description="各张照片一行摘要")
 
@@ -87,14 +117,64 @@ def _ensure_face_detected(features: dict) -> None:
         raise ValueError("正面照未识别到清晰正脸，请在自然光下正对镜头、五官无遮挡后重拍。")
 
 
-@router.post("/analyze", response_model=FaceAnalyzeResponse)
-async def analyze_face_route(body: FaceAnalyzeRequest) -> FaceAnalyzeResponse:
-    """接收 1～3 张面部照片（正面/侧面/补充），提取特征后由模型给出解读。"""
+async def _normalize_faces(body: FaceAnalyzeRequest) -> tuple[list[str], list[FaceSlot] | None]:
     image_urls = await asyncio.gather(
         *(normalize_image_data_url_async(raw) for raw in body.faces)
     )
+    return list(image_urls), body.slots
 
-    structured, features = await analyze_face(list(image_urls), slots=body.slots)
+
+@router.post("/extract", response_model=FaceExtractResponse)
+async def extract_face_route(
+    body: FaceAnalyzeRequest,
+    authorization: str | None = Header(default=None),
+) -> FaceExtractResponse:
+    """提取面相特征（约 5–10s）；需登录，计入每日识别额度。"""
+    user = await asyncio.to_thread(_require_user, authorization)
+    try:
+        await check_and_record_extract(user["id"], "face")
+    except ValueError as exc:
+        if "上限" in str(exc):
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise
+
+    image_urls, slots = await _normalize_faces(body)
+    features = await extract_face_features(image_urls, slots=slots)
+    _ensure_face_detected(features)
+
+    combined = features.get("combined")
+    face_type = "未知面型"
+    complexion = "—"
+    if isinstance(combined, dict):
+        face_type = str(combined.get("face_shape") or combined.get("face_type") or face_type)
+        complexion = str(combined.get("complexion") or complexion)
+    else:
+        face_type = str(features.get("face_shape") or features.get("face_type") or face_type)
+        complexion = str(features.get("complexion") or complexion)
+
+    summaries = per_image_summaries(features)
+    return FaceExtractResponse(
+        face_type=face_type,
+        complexion=complexion,
+        summary=feature_summary(features),
+        summaries=summaries or [feature_summary(features)],
+        features=features,
+    )
+
+
+@router.post("/interpret", response_model=FaceStructuredBody)
+async def interpret_face_route(body: FaceInterpretRequest) -> FaceStructuredBody:
+    """基于 /extract 的特征生成三停五官解读；积分由前端先 consume。"""
+    _ensure_face_detected(body.features)
+    structured = await interpret_face_features(body.features)
+    return FaceStructuredBody(**structured)
+
+
+@router.post("/analyze", response_model=FaceAnalyzeResponse)
+async def analyze_face_route(body: FaceAnalyzeRequest) -> FaceAnalyzeResponse:
+    """一次性完整解读（兼容旧版）。"""
+    image_urls, slots = await _normalize_faces(body)
+    structured, features = await analyze_face(list(image_urls), slots=slots)
     _ensure_face_detected(features)
 
     summaries = per_image_summaries(features)
