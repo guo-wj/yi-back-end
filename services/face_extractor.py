@@ -1,4 +1,4 @@
-"""面相图片解码与智谱视觉特征提取。"""
+"""面相图片解码与 GPT-4o 视觉特征提取。"""
 
 import json
 from typing import Any, Literal
@@ -55,7 +55,7 @@ async def extract_face_features(
     image_urls: list[str],
     slots: list[FaceSlot] | None = None,
 ) -> dict[str, Any]:
-    """调用智谱视觉模型，提取 1～3 张面相图的结构化特征。"""
+    """调用 GPT-4o 视觉模型，提取 1～3 张面相图的结构化特征。"""
     effective_slots = _resolve_face_slots(image_urls, slots)
 
     if len(image_urls) == 1:

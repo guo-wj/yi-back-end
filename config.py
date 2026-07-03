@@ -41,16 +41,17 @@ class Settings:
     # SQLite 用户库
     sqlite_path: str = os.getenv("SQLITE_PATH", "yi.db")
 
-    # 智谱视觉（掌纹特征提取）
-    zhipu_api_key: str = os.getenv("ZHIPU_API_KEY", "")
-    zhipu_base_url: str = os.getenv(
-        "ZHIPU_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
+    # GPT-4o 视觉（掌纹/面相特征提取）
+    vision_api_key: str = os.getenv("VISION_API_KEY", "")
+    vision_api_url: str = os.getenv(
+        "VISION_API_URL",
+        "https://aigateway.edgecloudapp.com/v1/dd49a827f86db98f499afcb77642ca6b/aicenter_gpt_chat",
     )
-    zhipu_vision_model: str = os.getenv("ZHIPU_VISION_MODEL", "glm-4.6v-flash")
+    vision_model: str = os.getenv("VISION_MODEL", "gpt-4o")
     palm_max_image_bytes: int = int(os.getenv("PALM_MAX_IMAGE_BYTES", "5242880"))
     palm_image_max_side: int = int(os.getenv("PALM_IMAGE_MAX_SIDE", "768"))
     palm_jpeg_quality: int = int(os.getenv("PALM_JPEG_QUALITY", "75"))
-    # True：一次智谱调用同时出特征+解读（慢，不推荐）；False：并行提特征 + DeepSeek 解读
+    # True：一次视觉调用同时出特征+解读（慢，不推荐）；False：并行提特征 + DeepSeek 解读
     vision_single_stage: bool = os.getenv("VISION_SINGLE_STAGE", "false").lower() in (
         "1",
         "true",

@@ -1,4 +1,4 @@
-"""掌纹图片解码与智谱视觉特征提取。"""
+"""掌纹图片解码与 GPT-4o 视觉特征提取。"""
 
 import asyncio
 import json
@@ -37,7 +37,7 @@ async def extract_palm_features(
     image_data_url: str,
     hand_side: HandSide,
 ) -> dict[str, Any]:
-    """调用智谱视觉模型，提取单手掌纹结构化特征。"""
+    """调用 GPT-4o 视觉模型，提取单手掌纹结构化特征。"""
     side_label = "左手" if hand_side == "left" else "右手"
     raw = await vision_completion(
         prompts.palm_feature_system(),
