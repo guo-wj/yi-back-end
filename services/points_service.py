@@ -33,8 +33,8 @@ MEMBER_TIERS: dict[str, dict] = {
         "bazi_free_daily": 0,
         "palm_free_daily": 0,
         "face_free_daily": 0,
-        "palm_extract_daily": 3,
-        "face_extract_daily": 3,
+        "palm_extract_daily": 10,
+        "face_extract_daily": 10,
     },
     "yiyou": {
         "label": "易友",
@@ -47,8 +47,8 @@ MEMBER_TIERS: dict[str, dict] = {
         "bazi_free_daily": 0,
         "palm_free_daily": 1,
         "face_free_daily": 1,
-        "palm_extract_daily": 8,
-        "face_extract_daily": 8,
+        "palm_extract_daily": 10,
+        "face_extract_daily": 10,
     },
     "yishi": {
         "label": "易师",
@@ -61,8 +61,8 @@ MEMBER_TIERS: dict[str, dict] = {
         "bazi_free_daily": 1,
         "palm_free_daily": 2,
         "face_free_daily": 2,
-        "palm_extract_daily": 8,
-        "face_extract_daily": 8,
+        "palm_extract_daily": 10,
+        "face_extract_daily": 10,
     },
     "yizun": {
         "label": "易尊",
