@@ -56,12 +56,31 @@ class PalmMountDetail(BaseModel):
     description: str = Field(..., description="该丘文化解读正文")
 
 
+class PalmLinePreview(BaseModel):
+    key: PalmLineKey = Field(..., description="life|head|heart")
+    name_cn: str = Field(..., description="中文线名")
+    name_en: str = Field(..., description="英文线名")
+    attribute: str = Field(..., description="识别阶段形质描述，如 长 · 清晰")
+    hint: str = Field(default="", description="识象阶段文化参考短评")
+
+
+class PalmMountPreview(BaseModel):
+    key: PalmMountKey = Field(..., description="丘位 key")
+    name_cn: str = Field(..., description="丘名")
+    icon_text: str = Field(..., description="图标单字")
+    status: str = Field(..., description="盛|匀|平（由隆起程度推断）")
+    keywords: list[str] = Field(..., min_length=2, max_length=2, description="主题词")
+    hint: str = Field(default="", description="识象阶段文化参考短评")
+
+
 class PalmStructuredBody(BaseModel):
     content: str = Field(..., description="完整解读正文（Markdown）")
     palm_type: str = Field(..., description="五行掌形，如 水形掌")
     complexion: str = Field(..., description="掌色气色，如 红润")
     primary_hand: PrimaryHand = Field(..., description="主看之手：left 或 right")
     overview: str = Field(..., description="掌象综述")
+    closing_summary: str = Field(..., description="综合总结")
+    advice_items: list[str] = Field(..., min_length=2, description="实践建议（分条）")
     lines: list[PalmLineDetail] = Field(..., description="三大主线结构化解读")
     mounts: list[PalmMountDetail] = Field(..., description="五丘结构化解读")
 
@@ -73,9 +92,13 @@ class PalmExtractResponse(BaseModel):
     right_features: dict[str, Any] = Field(..., description="右手结构化特征（供 /interpret 回传）")
     left_summary: str = Field(..., description="左手一行摘要")
     right_summary: str = Field(..., description="右手一行摘要")
-    palm_type: str = Field(..., description="主看之手掌形")
+    palm_type: str = Field(..., description="主看之手掌形（五行掌形优先）")
+    palm_shape: str = Field(..., description="主看之手几何掌形，如 方形")
     complexion: str = Field(..., description="主看之手气色")
     primary_hand: PrimaryHand = Field(default="right", description="主看之手")
+    extract_overview: str = Field(..., description="识象综合摘要")
+    preview_lines: list[PalmLinePreview] = Field(..., description="主看之手三线初识")
+    preview_mounts: list[PalmMountPreview] = Field(..., description="主看之手五丘初览")
 
 
 class PalmInterpretRequest(BaseModel):
@@ -106,16 +129,18 @@ async def extract_palm(
     body: PalmImagesRequest,
     authorization: str | None = Header(default=None),
 ) -> PalmExtractResponse:
-    """并行提取左右掌纹特征（约 5–10s）；需登录，计入每日识别额度。"""
+    """左右手并行提取掌纹特征；鉴权与图片压缩并行。"""
+    norm_task = asyncio.create_task(_normalize_palm_images(body))
     user = await asyncio.to_thread(_require_user, authorization)
     try:
         await check_and_record_extract(user["id"], "palm")
     except ValueError as exc:
+        norm_task.cancel()
         if "上限" in str(exc):
             raise HTTPException(status_code=429, detail=str(exc)) from exc
         raise
 
-    left_url, right_url = await _normalize_palm_images(body)
+    left_url, right_url = await norm_task
     result = await extract_palms(left_url, right_url)
     _ensure_hand_detected(result["left_features"], "左手")
     _ensure_hand_detected(result["right_features"], "右手")
@@ -124,7 +149,7 @@ async def extract_palm(
 
 @router.post("/interpret", response_model=PalmStructuredBody)
 async def interpret_palm(body: PalmInterpretRequest) -> PalmStructuredBody:
-    """基于 /extract 的特征生成三线五丘解读（约 3–6s，纯文本模型）。"""
+    """基于 /extract 的特征生成三线五丘解读（纯文本模型）。"""
     _ensure_hand_detected(body.left_features, "左手")
     _ensure_hand_detected(body.right_features, "右手")
     structured = await interpret_palm_features(

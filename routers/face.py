@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from services.auth_service import user_from_token
 from services.face_extractor import (
     analyze_face,
+    build_extract_result,
     extract_face_features,
     feature_summary,
     interpret_face_features,
@@ -84,13 +85,36 @@ class FaceOrganDetail(BaseModel):
     description: str = Field(..., description="该官文化解读正文")
 
 
+class FaceStopPreview(BaseModel):
+    key: FaceStopKey
+    name_cn: str
+    region: str
+    attribute: str = Field(..., description="三停长短：长|中|短")
+    hint: str = Field(..., description="该停初识短评")
+
+
+class FaceOrganPreview(BaseModel):
+    key: FaceOrganKey
+    name_cn: str
+    icon_text: str
+    office: str
+    keywords: list[str] = Field(..., min_length=2, max_length=2)
+    status: str = Field(..., description="旺|盛|匀|平|弱")
+    attribute: str = Field(..., description="该官形质简述")
+    hint: str = Field(..., description="该官初识短评")
+
+
 class FaceExtractResponse(BaseModel):
     """特征提取结果：供前端展示面型/气色摘要，再调 /interpret。"""
 
     face_type: str = Field(..., description="五行面型，如 木形面")
+    face_shape: str = Field(..., description="脸型，如 鹅蛋")
     complexion: str = Field(..., description="气色，如 明润")
     summary: str = Field(..., description="综合一行摘要")
     summaries: list[str] = Field(..., description="各张照片一行摘要")
+    extract_overview: str = Field(..., description="识象综合摘要")
+    preview_stops: list[FaceStopPreview] = Field(..., description="三停初识")
+    preview_organs: list[FaceOrganPreview] = Field(..., description="五官初览")
     features: dict[str, Any] = Field(..., description="结构化特征（供 /interpret 回传）")
 
 
@@ -103,6 +127,8 @@ class FaceStructuredBody(BaseModel):
     face_type: str = Field(..., description="五行面型，如 木形面")
     complexion: str = Field(..., description="气色，如 明润")
     overview: str = Field(..., description="面相综述")
+    closing_summary: str = Field(..., description="综合总结")
+    advice_items: list[str] = Field(..., min_length=2, description="实践建议（分条）")
     stops: list[FaceStopDetail] = Field(..., description="三停结构化解读")
     organs: list[FaceOrganDetail] = Field(..., description="五官结构化解读")
 
@@ -142,24 +168,8 @@ async def extract_face_route(
     features = await extract_face_features(image_urls, slots=slots)
     _ensure_face_detected(features)
 
-    combined = features.get("combined")
-    face_type = "未知面型"
-    complexion = "—"
-    if isinstance(combined, dict):
-        face_type = str(combined.get("face_shape") or combined.get("face_type") or face_type)
-        complexion = str(combined.get("complexion") or complexion)
-    else:
-        face_type = str(features.get("face_shape") or features.get("face_type") or face_type)
-        complexion = str(features.get("complexion") or complexion)
-
-    summaries = per_image_summaries(features)
-    return FaceExtractResponse(
-        face_type=face_type,
-        complexion=complexion,
-        summary=feature_summary(features),
-        summaries=summaries or [feature_summary(features)],
-        features=features,
-    )
+    payload = build_extract_result(features)
+    return FaceExtractResponse(**payload)
 
 
 @router.post("/interpret", response_model=FaceStructuredBody)

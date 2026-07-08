@@ -5,6 +5,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from config import settings
 from services import prompts
 from services.deepseek_client import chat_completion
 from utils.lunar import (
@@ -125,12 +126,6 @@ def _resolve_birth_date(body: BaziRequest) -> date:
         raise HTTPException(status_code=400, detail="阴历出生日期无效或闰月设置有误。") from e
 
 
-def _birth_input_label(body: BaziRequest) -> str:
-    cal = "阳历" if body.calendar == "solar" else "阴历"
-    leap = "闰" if body.is_leap_month else ""
-    return f"{cal}{body.birth_year}年{leap}{body.birth_month}月{body.birth_day}日"
-
-
 def _build_chart(body: BaziRequest) -> tuple[date, datetime, str, str, str]:
     birth_date = _resolve_birth_date(body)
     hour = shi_chen_to_hour(body.birth_hour)
@@ -161,15 +156,16 @@ async def bazi_interpret(body: BaziRequest) -> BaziInterpretResponse:
 
     user = prompts.bazi_user(
         gender=body.gender,
-        birth_place=body.birth_place,
-        birth_input=_birth_input_label(body),
-        birth_solar=birth_dt.isoformat(timespec="minutes"),
-        birth_hour_label=hour_label,
         sexual_orientation=body.sexual_orientation,
         pillars_hint=pillars,
         focus=body.focus,
     )
-    content = await chat_completion(prompts.bazi_system(), user)
+    content = await chat_completion(
+        prompts.bazi_system(),
+        user,
+        temperature=0.35,
+        max_tokens=settings.bazi_interpret_max_tokens,
+    )
     return BaziInterpretResponse(content=content)
 
 
@@ -180,15 +176,16 @@ async def bazi_analyze(body: BaziRequest) -> BaziResponse:
 
     user = prompts.bazi_user(
         gender=body.gender,
-        birth_place=body.birth_place,
-        birth_input=_birth_input_label(body),
-        birth_solar=birth_dt.isoformat(timespec="minutes"),
-        birth_hour_label=hour_label,
         sexual_orientation=body.sexual_orientation,
         pillars_hint=pillars,
         focus=body.focus,
     )
-    content = await chat_completion(prompts.bazi_system(), user)
+    content = await chat_completion(
+        prompts.bazi_system(),
+        user,
+        temperature=0.35,
+        max_tokens=settings.bazi_interpret_max_tokens,
+    )
 
     return BaziResponse(
         birth_solar=birth_date.isoformat(),

@@ -62,7 +62,7 @@ def compress_image_bytes(data: bytes) -> str:
     w, h = img.size
     if max(w, h) > max_side:
         scale = max_side / max(w, h)
-        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.BILINEAR)
 
     buf = BytesIO()
     img.save(buf, format="JPEG", quality=settings.palm_jpeg_quality, optimize=True)

@@ -63,12 +63,18 @@ async def extract_face_features(
             prompts.face_feature_system(),
             prompts.face_feature_user(slots=effective_slots),
             image_urls[0],
+            image_detail="low",
+            temperature=0.1,
+            max_tokens=settings.face_feature_max_tokens,
         )
     else:
         raw = await vision_completion_multi(
             prompts.face_feature_system(),
             prompts.face_feature_user(slots=effective_slots),
             image_urls,
+            image_detail="low",
+            temperature=0.1,
+            max_tokens=settings.face_feature_max_tokens,
         )
     return extract_json(raw, error_label="面相特征")
 
@@ -208,6 +214,197 @@ def _combined(features: dict[str, Any]) -> dict[str, Any]:
     return combined if isinstance(combined, dict) else features
 
 
+_SHAPE_TO_FACE_TYPE: dict[str, str] = {
+    "圆形": "水形面",
+    "方形": "金形面",
+    "长形": "木形面",
+    "鹅蛋": "土形面",
+    "菱形": "火形面",
+}
+
+_FEATURE_ORGAN_KEYS: dict[FaceOrganKey, str] = {
+    "brow": "eyebrows",
+    "eye": "eyes",
+    "nose": "nose",
+    "mouth": "mouth",
+    "ear": "ears",
+}
+
+_STOP_LENGTH_HINT: dict[str, str] = {
+    "长": "停面偏长，该阶段行事重心更易被他人感知",
+    "中": "停面适中，节奏平稳，宜守正出奇",
+    "短": "停面偏短，该阶段宜主动经营，不宜完全随缘",
+}
+
+_ORGAN_FEATURE_HINT: dict[FaceOrganKey, str] = {
+    "brow": "眉为保寿官，主情志与兄弟缘，眉势影响第一印象与决断气度",
+    "eye": "眼为监察官，主心神与智略，眼神决定识人之准与专注深度",
+    "nose": "鼻为审辨官，主财帛与自身，鼻梁鼻翼关系取舍与守成能力",
+    "mouth": "口为出纳官，主言信与福禄，唇形口角影响表达分寸与人缘",
+    "ear": "耳为采听官，主根基与寿元，耳位形态关系早年根基与吸纳力",
+}
+
+
+def _section_length(combined: dict[str, Any], key: FaceStopKey) -> str:
+    sections = combined.get("three_sections")
+    if not isinstance(sections, dict):
+        return "中"
+    raw = sections.get(key)
+    if isinstance(raw, str) and raw.strip() in ("长", "中", "短"):
+        return raw.strip()
+    return "中"
+
+
+def _organ_feature_text(combined: dict[str, Any], key: FaceOrganKey) -> str:
+    features = combined.get("features")
+    if not isinstance(features, dict):
+        return ""
+    raw = features.get(_FEATURE_ORGAN_KEYS[key])
+    return raw.strip() if isinstance(raw, str) else ""
+
+
+def _organ_preview_status(text: str) -> str:
+    if any(word in text for word in ("饱满", "丰", "厚", "明", "有神", "挺直", "端正")):
+        return "盛"
+    if any(word in text for word in ("薄", "淡", "弱", "塌", "窄", "模糊")):
+        return "平"
+    return "匀"
+
+
+def _stop_preview_hint(key: FaceStopKey, length: str) -> str:
+    name_cn, region = STOP_META[key]
+    body = _STOP_LENGTH_HINT.get(length, _STOP_LENGTH_HINT["中"])
+    return f"{name_cn}（{region.split('·')[0].strip()}）{body}。"
+
+
+def _organ_preview_hint(key: FaceOrganKey, text: str) -> str:
+    name_cn, _, office, keywords = ORGAN_META[key]
+    kw = "、".join(keywords)
+    if text:
+        feat = text if text.startswith(name_cn) else f"{name_cn}{text}"
+        return f"{office}{feat}；多主{kw}。"
+    return f"{_ORGAN_FEATURE_HINT[key]}；多主{kw}。"
+
+
+def build_stop_previews(features: dict[str, Any]) -> list[dict[str, Any]]:
+    combined = _combined(features)
+    previews: list[dict[str, Any]] = []
+    for key in STOP_META:
+        typed_key: FaceStopKey = key
+        name_cn, region = STOP_META[typed_key]
+        length = _section_length(combined, typed_key)
+        previews.append(
+            {
+                "key": typed_key,
+                "name_cn": name_cn,
+                "region": region,
+                "attribute": length,
+                "hint": _stop_preview_hint(typed_key, length),
+            }
+        )
+    return previews
+
+
+def build_organ_previews(features: dict[str, Any]) -> list[dict[str, Any]]:
+    combined = _combined(features)
+    previews: list[dict[str, Any]] = []
+    for key in ORGAN_META:
+        typed_key: FaceOrganKey = key
+        name_cn, icon_text, office, default_keywords = ORGAN_META[typed_key]
+        text = _organ_feature_text(combined, typed_key)
+        attribute = text if text else "—"
+        if len(attribute) > 18:
+            attribute = attribute[:17] + "…"
+        previews.append(
+            {
+                "key": typed_key,
+                "name_cn": name_cn,
+                "icon_text": icon_text,
+                "office": office,
+                "keywords": list(default_keywords),
+                "status": _organ_preview_status(text),
+                "attribute": attribute,
+                "hint": _organ_preview_hint(typed_key, text),
+            }
+        )
+    return previews
+
+
+def build_extract_overview(features: dict[str, Any]) -> str:
+    """识别阶段综合摘要：面型气色、三停比例与五官要点。"""
+    combined = _combined(features)
+    shape = combined.get("face_shape")
+    shape_text = shape.strip() if isinstance(shape, str) and shape.strip() else "未知"
+    face_type = _SHAPE_TO_FACE_TYPE.get(shape_text, shape_text)
+    complexion = _fallback_complexion(features)
+
+    sections = combined.get("three_sections")
+    section_bits: list[str] = []
+    if isinstance(sections, dict):
+        for key in STOP_META:
+            typed_key: FaceStopKey = key
+            length = _section_length(combined, typed_key)
+            name_cn = STOP_META[typed_key][0]
+            section_bits.append(f"{name_cn}{length}")
+
+    lead = f"{face_type}，气色{complexion}。"
+    if section_bits:
+        lead += f"三停比例：{'、'.join(section_bits)}。"
+
+    organ_bits: list[str] = []
+    for key in ORGAN_META:
+        typed_key: FaceOrganKey = key
+        text = _organ_feature_text(combined, typed_key)
+        if text:
+            name_cn = ORGAN_META[typed_key][0]
+            label = text if text.startswith(name_cn) else f"{name_cn}{text}"
+            organ_bits.append(label)
+    if organ_bits:
+        lead += "五官要点：" + "；".join(organ_bits[:5]) + "。"
+
+    marks = combined.get("special_marks")
+    if isinstance(marks, list):
+        cleaned = [str(m).strip() for m in marks if str(m).strip() and str(m) != "无"]
+        if cleaned:
+            lead += "可见标记：" + "、".join(cleaned[:3]) + "。"
+
+    per_image = features.get("per_image")
+    if isinstance(per_image, list) and len(per_image) > 1:
+        angles: list[str] = []
+        for item in per_image:
+            if not isinstance(item, dict):
+                continue
+            slot = item.get("slot")
+            label = SLOT_LABELS.get(slot, "照片") if isinstance(slot, str) else "照片"
+            quality = item.get("image_quality")
+            if isinstance(quality, str) and quality.strip():
+                angles.append(f"{label}{quality.strip()}")
+        if angles:
+            lead += "多角度：" + "；".join(angles) + "。"
+
+    return lead
+
+
+def build_extract_result(features: dict[str, Any]) -> dict[str, Any]:
+    """组装特征提取结果，供前端先渲染识象预览。"""
+    combined = _combined(features)
+    shape = combined.get("face_shape")
+    shape_text = shape.strip() if isinstance(shape, str) and shape.strip() else "未知面型"
+    face_type = _SHAPE_TO_FACE_TYPE.get(shape_text, shape_text)
+    summaries = per_image_summaries(features)
+    return {
+        "face_type": face_type,
+        "face_shape": shape_text,
+        "complexion": _fallback_complexion(features),
+        "summary": feature_summary(features),
+        "summaries": summaries or [feature_summary(features)],
+        "extract_overview": build_extract_overview(features),
+        "preview_stops": build_stop_previews(features),
+        "preview_organs": build_organ_previews(features),
+        "features": features,
+    }
+
+
 def _fallback_face_type(features: dict[str, Any]) -> str:
     combined = _combined(features)
     face_type = combined.get("face_type")
@@ -215,6 +412,9 @@ def _fallback_face_type(features: dict[str, Any]) -> str:
         return face_type.strip()
     shape = combined.get("face_shape")
     if isinstance(shape, str) and shape.strip() and shape != "未知":
+        mapped = _SHAPE_TO_FACE_TYPE.get(shape.strip())
+        if mapped:
+            return mapped
         return shape.strip()
     return "未知"
 
@@ -227,10 +427,28 @@ def _fallback_complexion(features: dict[str, Any]) -> str:
     return "未知"
 
 
+def _normalize_advice_items(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        raise ValueError("面相解读缺少实践建议，请重试。")
+    items = [str(item).strip() for item in raw if str(item).strip()]
+    if len(items) < 2:
+        raise ValueError("面相实践建议不足，请重试。")
+    return items[:6]
+
+
+def _normalize_closing_summary(raw: Any) -> str:
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    raise ValueError("面相解读缺少综合总结，请重试。")
+
+
 def _build_content_markdown(
     overview: str,
     stops: list[dict[str, Any]],
     organs: list[dict[str, Any]],
+    *,
+    closing_summary: str = "",
+    advice_items: list[str] | None = None,
 ) -> str:
     parts: list[str] = []
     if overview:
@@ -248,6 +466,10 @@ def _build_content_markdown(
             parts.append(
                 f"### {organ['name_cn']} · {organ['office']} · {kw}（{organ['status']}）\n\n{organ['description']}"
             )
+    if closing_summary:
+        parts.append(f"## 综合总结\n\n{closing_summary}")
+    if advice_items:
+        parts.append("## 实践建议\n\n" + "\n".join(f"- {item}" for item in advice_items))
     return "\n\n".join(parts)
 
 
@@ -277,12 +499,18 @@ def parse_structured_face_result(
         else _fallback_complexion(features)
     )
     overview = overview_raw.strip()
+    closing_summary = _normalize_closing_summary(parsed.get("closing_summary"))
+    advice_items = _normalize_advice_items(parsed.get("advice_items"))
 
     content_raw = parsed.get("content")
     content = (
         content_raw.strip()
         if isinstance(content_raw, str) and content_raw.strip()
-        else _build_content_markdown(overview, stops, organs)
+        else _build_content_markdown(
+            overview, stops, organs,
+            closing_summary=closing_summary,
+            advice_items=advice_items,
+        )
     )
 
     return {
@@ -290,23 +518,49 @@ def parse_structured_face_result(
         "face_type": face_type,
         "complexion": complexion,
         "overview": overview,
+        "closing_summary": closing_summary,
+        "advice_items": advice_items,
         "stops": stops,
         "organs": organs,
     }
+
+
+def _compact_face_features(features: dict[str, Any]) -> dict[str, Any]:
+    """解读阶段精简特征：保留 combined 与各图角度/质量，去掉逐图长摘要。"""
+    combined = features.get("combined")
+    if not isinstance(combined, dict):
+        return features
+    per_image = features.get("per_image")
+    compact_per: list[dict[str, Any]] = []
+    if isinstance(per_image, list):
+        for item in per_image:
+            if not isinstance(item, dict):
+                continue
+            compact_per.append(
+                {
+                    "slot": item.get("slot"),
+                    "image_quality": item.get("image_quality"),
+                }
+            )
+    return {"combined": combined, "per_image": compact_per}
 
 
 async def interpret_face_features(features: dict[str, Any]) -> dict[str, Any]:
     """基于已提取特征，由 DeepSeek 生成结构化面相解读。"""
     from services.deepseek_client import chat_completion
 
+    overview = build_extract_overview(features)
     user = prompts.face_interpret_user(
-        features=json.dumps(features, ensure_ascii=False, separators=(",", ":")),
+        features=json.dumps(
+            _compact_face_features(features), ensure_ascii=False, separators=(",", ":")
+        ),
+        extract_overview=overview,
     )
     raw = await chat_completion(
         prompts.face_interpret_system(),
         user,
-        temperature=0.65,
-        max_tokens=settings.interpret_max_tokens,
+        temperature=0.35,
+        max_tokens=settings.face_interpret_max_tokens,
     )
     parsed = extract_json(raw, error_label="面相解读")
     return parse_structured_face_result(parsed, features=features)

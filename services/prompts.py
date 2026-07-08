@@ -5,13 +5,19 @@ SYSTEM_BASE = (
     "回答需条理清晰、用语准确，避免迷信恐吓式话术；可作文化参考，不替代医疗与法律建议。"
 )
 
+_ANTI_SOUP_RULES = (
+    "写作禁令（违反视为不合格）："
+    "严禁空洞套话——相信自己、保持积极、顺其自然、加油、看开、一切都会好、"
+    "心态决定一切、云开见日、心若安然等励志口号；"
+    "须写实质：客观趋势、优短板、风险点、可执行的具体行为建议。"
+)
+
 
 def lottery_interpret_system() -> str:
     return (
-        SYSTEM_BASE
-        + "当前任务：解签。签文已由问卜方抽出并给定，你不得改换签号、签题或签诗原文。"
-        "请紧扣签诗意象与签题，结合问卜者的日期与所问（若有），用中性、温和的语言解签："
-        "简述寓意、心态与行事建议；避免绝对化断语与恐吓；可作文化参考。"
+        "你是解签学者。用户已看到签诗与传统解曰，你的任务是写「AI 参详」："
+        "紧扣签文深化所问/处境，给趋势、宜忌与可执行建议；不重复传统解曰，不作鸡汤套话。"
+        + _ANTI_SOUP_RULES
     )
 
 
@@ -21,6 +27,7 @@ def lottery_interpret_user(
     slip_tier: str,
     slip_title: str,
     slip_poem: str,
+    slip_gist: str,
     solar_date: str,
     lunar_hint: str,
     name: str | None,
@@ -28,31 +35,33 @@ def lottery_interpret_user(
     question: str | None,
 ) -> str:
     parts = [
-        f"【所抽灵签】第 {slip_id} 签",
-        f"等第：{slip_tier}",
-        f"签题：{slip_title}",
-        "签诗：",
-        slip_poem,
-        f"占问公历：{solar_date}",
-        f"农历参考：{lunar_hint}",
+        f"第{slip_id}签·{slip_title}（{slip_tier}）",
+        f"签诗：{slip_poem.replace(chr(10), ' ')}",
+        f"传统解曰（用户已读，勿复述）：{slip_gist}",
+        f"占问：{solar_date} {lunar_hint}",
     ]
     if name:
         parts.append(f"称呼：{name}")
     if focus:
-        parts.append(f"今日关注：{focus}")
+        parts.append(f"关注：{focus}")
     if question:
-        parts.append(f"所问事项：{question}")
+        parts.append(f"所问：{question}")
     parts.append(
-        "请输出结构化解签（可用小标题）：①签意总览 ②与所问之呼应（若无则写通用心境）"
-        "③宜与忌（行事与心态，忌夸大）④一句赠言。总字数控制在 400 字以内。"
+        "请输出 AI 参详（Markdown 小标题，共 4 段，总 280-380 字）："
+        "## 当下呼应\n80-100字，结合所问/关注写处境与签文关系\n"
+        "## 趋势与注意\n80-100字，优短板并陈\n"
+        "## 宜与忌\n宜：2条；忌：2条（具体行为）\n"
+        "## 实践建议\n3条，每条一句可执行建议\n"
+        "禁套话；勿重复传统解曰。"
     )
     return "\n".join(parts)
 
 
 def liuyao_system() -> str:
     return (
-        SYSTEM_BASE
-        + "当前任务：六爻纳甲分析。根据所给卦象与问事，解读动爻、用神、旺衰与应期思路（学术化表述）。"
+        "你是六爻解卦师。用户已看到本卦/变卦/六爻排盘，勿重复卦名与爻辞罗列。"
+        "紧扣动爻与所问，写趋势、宜忌、可执行建议；学术化但不冗长，禁鸡汤套话。"
+        + _ANTI_SOUP_RULES
     )
 
 
@@ -64,22 +73,19 @@ def liuyao_cast_user(
     moving_desc: str,
     lines_desc: str,
 ) -> str:
+    bian_part = f"，变卦{bian_gua}" if bian_gua else "，静卦无变"
     parts = [
-        f"所问事项：{question}",
-        f"本卦：{ben_gua}",
+        f"所问：{question}",
+        f"本卦{ben_gua}{bian_part}；动爻：{moving_desc}",
+        f"六爻：{lines_desc}",
+        "卦盘已在界面展示，勿复述卦名与六爻明细。",
+        "请输出 AI 解卦（Markdown 小标题，4 段，总 300-400 字）：",
+        "## 动爻取意\n80-100字，动爻/静卦对事态的关键提示",
+        "## 所问趋势\n80-100字，优短板并陈",
+        "## 宜与忌\n宜2条；忌2条（具体行为）",
+        "## 实践建议\n3条，每条一句可执行",
+        "禁套话。",
     ]
-    if bian_gua:
-        parts.append(f"变卦：{bian_gua}")
-    else:
-        parts.append("变卦：无动爻，以本卦静断。")
-    parts.append(f"动爻：{moving_desc}")
-    parts.append("六爻（自下而上）：")
-    parts.append(lines_desc)
-    parts.append(
-        "请输出结构化解卦（可用小标题）：①卦象总述（本卦卦意，有变卦则述卦变趋势）"
-        "②动爻提示（无动爻则述静卦取意）③针对所问的吉凶趋势 ④可操作建议 ⑤一句赠言。"
-        "用中性、温和、学术化的语言，避免绝对化与恐吓，总字数 500 字以内。"
-    )
     return "\n".join(parts)
 
 
@@ -100,46 +106,49 @@ def ziwei_user(*, birth_solar: str, gender: str, extra: str | None) -> str:
 
 def bazi_system() -> str:
     return (
-        SYSTEM_BASE
-        + "当前任务：四柱八字分析。根据出生干支与五行流通，分析格局、喜忌与运势倾向（不作绝对断语）。"
+        "你是八字命理师。用户已看到四柱排盘，勿重复罗列干支与生辰。"
+        "据四柱写日主格局、各关注维度的趋势与可执行建议；中肯务实，禁鸡汤套话。"
+        + _ANTI_SOUP_RULES
     )
 
 
 def bazi_user(
     *,
     gender: str,
-    birth_place: str,
-    birth_input: str,
-    birth_solar: str,
-    birth_hour_label: str,
     sexual_orientation: str,
     pillars_hint: str,
     focus: list[str],
 ) -> str:
     focus_text = "、".join(focus)
+    n = len(focus)
+    total_lo = 260 + n * 70
+    total_hi = 360 + n * 90
     lines = [
-        f"性别：{gender}",
-        f"出生地：{birth_place}",
-        f"出生日期（用户填写）：{birth_input}",
-        f"出生时间（归一公历）：{birth_solar}",
-        f"出生时辰：{birth_hour_label}",
-        f"性取向：{sexual_orientation}",
-        f"四柱参考（程序推算，请复核）：{pillars_hint}",
-        f"关注事项：{focus_text}",
+        f"{gender}，性取向{sexual_orientation}",
+        f"四柱：{pillars_hint}（界面已展示，勿复述）",
+        f"关注：{focus_text}",
+        "请输出 Markdown：",
+        "## 日主与格局",
+        "70-90字：日主强弱、喜用神方向、性格优短板",
     ]
-    lines.append(
-        "请结合四柱八字，针对用户所选关注事项分别解读（仅写已选维度，用小标题区分）。"
-        "感情分析须兼顾性取向语境，避免刻板异性恋假设；"
-        "整体须含：日主强弱与喜用神方向、性格基调。"
-        "用语中性温和、学术化，避免绝对化与恐吓，总字数 600 字以内。"
-    )
+    for item in focus:
+        lines.append(f"## {item}")
+        lines.append("70-90字：该维度趋势、注意点、1条具体建议")
+        if item == "感情":
+            lines.append("（须兼顾性取向语境，避免刻板异性恋假设）")
+    lines.extend([
+        "## 实践建议",
+        "3-4条，各一句可执行",
+        f"总字数 {total_lo}-{total_hi} 字；禁套话。",
+    ])
     return "\n".join(lines)
 
 
 def meihua_system() -> str:
     return (
-        SYSTEM_BASE
-        + "当前任务：梅花易数解卦。依据体用生克、本卦变卦与互卦，结合所问给出卦象解读（学术化、文化参考）。"
+        "你是梅花易数解卦师。用户已看到本/变/互卦与体用，勿重复卦名与起卦过程。"
+        "紧扣体用生克、动爻与所问，写趋势、宜忌、可执行建议；禁鸡汤套话。"
+        + _ANTI_SOUP_RULES
     )
 
 
@@ -147,7 +156,6 @@ def meihua_user(
     *,
     question: str,
     method_label: str,
-    method_detail: str,
     ben_gua: str,
     bian_gua: str,
     hu_gua: str,
@@ -156,20 +164,17 @@ def meihua_user(
     moving_line: int,
 ) -> str:
     parts = [
-        f"所问事项：{question}",
-        f"起卦方式：{method_label}",
-        f"起卦过程：{method_detail}",
-        f"本卦：{ben_gua}",
-        f"变卦：{bian_gua}",
-        f"互卦：{hu_gua}",
-        f"体卦：{ti_trigram}，用卦：{yong_trigram}",
-        f"动爻：第{moving_line}爻",
+        f"所问：{question}（{method_label}）",
+        f"本卦{ben_gua}，变卦{bian_gua}，互卦{hu_gua}",
+        f"体{ti_trigram}用{yong_trigram}，动第{moving_line}爻",
+        "卦象已在界面展示，勿复述起卦过程与卦名。",
+        "请输出 AI 解卦（Markdown 小标题，4 段，总 300-400 字）：",
+        "## 体用生克\n80-100字，体用关系与动静趋势",
+        "## 变互提示\n60-80字，变卦/互卦对事态的补充",
+        "## 所问趋势\n80-100字，优短板并陈",
+        "## 宜忌与建议\n宜2条、忌2条；实践建议3条（各一句）",
+        "禁套话。",
     ]
-    parts.append(
-        "请输出结构化梅花易数解卦（可用小标题）：①卦象总述（本卦卦意）"
-        "②体用生克与动静趋势 ③变卦、互卦对事态的提示 ④针对所问的分析与建议 ⑤一句赠言。"
-        "用中性、温和、学术化的语言，避免绝对化与恐吓，总字数 500 字以内。"
-    )
     return "\n".join(parts)
 
 
@@ -192,41 +197,49 @@ def palm_feature_dual_user() -> str:
 
 
 def _palm_hand_fields(hand_side: str) -> str:
+    """识别阶段用紧凑 schema，减少视觉模型输出耗时。"""
     return (
         "{"
         f'"hand_detected":true,"hand_side":"{hand_side}",'
-        '"image_quality":"clear|blurry|shadowed",'
         '"palm_shape":"方形|长方形|修长|其他",'
         '"palm_type":"金形掌|木形掌|水形掌|火形掌|土形掌|未知",'
         '"complexion":"红润|苍白|暗沉|偏黄|未知",'
-        '"lines":{"life":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向简述"},'
-        '"heart":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向简述"},'
-        '"head":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"走向简述"}},'
+        '"lines":{"life":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"4字内"},'
+        '"heart":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"4字内"},'
+        '"head":{"visible":true,"length":"短|中|长","clarity":"清晰|一般|模糊","trend":"4字内"}},'
         '"mounts":{"venus":"平坦|适中|隆起","jupiter":"平坦|适中|隆起","saturn":"平坦|适中|隆起",'
         '"apollo":"平坦|适中|隆起","mercury":"平坦|适中|隆起"},'
-        '"special_marks":[],"one_line_summary":"20字内客观描述"}'
+        '"one_line_summary":"20字内：掌形气色与三线要点"}'
     )
 
 
 def _palm_structured_interpret_fields() -> str:
     line = (
-        '{"key":"life|head|heart","attribute":"2-4字特征词如深长|清晰|柔缓",'
-        '"score":1-5,"description":"60-90字该线文化解读，不作医疗断语"}'
+        '{"key":"life|head|heart","attribute":"2-4字","score":1-5,'
+        '"description":"60-80字：引用特征+行事倾向+1条建议"}'
     )
     mount = (
         '{"key":"venus|jupiter|saturn|apollo|mercury",'
-        '"keywords":["2字词","2字词"],'
-        '"status":"旺|盛|匀|平|弱",'
-        '"description":"30-50字该丘文化解读，基于隆起程度与位置"}'
+        '"keywords":["2字","2字"],"status":"旺|盛|匀|平|弱",'
+        '"description":"45-60字：丘位形质+倾向+提醒"}'
     )
     return (
         '"palm_type":"金形掌|木形掌|水形掌|火形掌|土形掌",'
-        '"complexion":"红润|苍白|暗沉|偏黄|其他简述",'
+        '"complexion":"红润|苍白|暗沉|偏黄|其他",'
         '"primary_hand":"left|right",'
-        '"overview":"掌象综述，100-150字，综合左右掌形气质与整体印象",'
+        '"overview":"120-150字：左右差异与行事含义，勿复述识象摘要",'
+        '"closing_summary":"80-100字：核心形质+近期重心+短板",'
+        '"advice_items":["可执行建议","共3-4条"],'
         f'"lines":[{line},{line},{line}],'
         f'"mounts":[{mount},{mount},{mount},{mount},{mount}]'
     )
+
+
+_PALM_INTERPRET_RULES = (
+    "写作要求：每条须「据特征…」再展开；写实质（决策节奏、人际边界、财业关注点）；"
+    "禁套话与医疗断语；不作绝对吉凶。"
+    + _ANTI_SOUP_RULES
+)
 
 
 def _palm_single_hand_schema(hand_side: str) -> str:
@@ -235,29 +248,29 @@ def _palm_single_hand_schema(hand_side: str) -> str:
 
 def palm_interpret_system() -> str:
     return (
-        SYSTEM_BASE
-        + "当前任务：掌纹（手相）文化解读。根据已给的结构化掌纹特征输出 JSON，"
-        "不得臆造特征中未出现的线条或标记；强调文化参考与心态建议，不作医疗诊断或绝对命运断语。"
-        "只输出 JSON，无 markdown、无说明。"
+        "你是掌纹文化解读师。用户已看到识象摘要与掌形标签，overview 勿重复罗列特征。"
+        "据结构化特征输出 JSON：写行事倾向与可执行建议，像老师傅点脉，禁鸡汤套话。"
+        "不得臆造未见线条；不作医疗诊断或绝对命运断语。只输出 JSON。"
     )
 
 
-def palm_interpret_user(*, left_features: str, right_features: str) -> str:
+def palm_interpret_user(
+    *,
+    left_features: str,
+    right_features: str,
+    extract_overview: str,
+) -> str:
     parts = [
-        "【左手特征（程序提取，请据此解读）】",
+        f"识象摘要（界面已展示，overview 勿复述）：{extract_overview}",
+        "【左手特征】",
         left_features,
-        "",
-        "【右手特征（程序提取，请据此解读）】",
+        "【右手特征】",
         right_features,
-        "",
-        "请只输出 JSON（无 markdown 代码块），字段：",
+        _PALM_INTERPRET_RULES,
+        "只输出 JSON（无 markdown），字段：",
         "{" + _palm_structured_interpret_fields() + "}",
-        "lines 须含 life、head、heart 各一条且 key 不重复；"
-        "mounts 须含 venus、jupiter、saturn、apollo、mercury 各一条且 key 不重复；"
-        "mounts.status 反映该丘隆起与饱满程度（隆起→旺/盛，适中→匀/盛，平坦→平/弱）；"
-        "primary_hand 表示惯用手/主看之手（通常右手）；"
-        "score 为 1-5 整数，表该线形质优劣的文化参考，非医学指标；"
-        "解读须严格基于特征，不得臆造未见线条。",
+        "lines 须含 life、head、heart 各一条；mounts 须含 venus/jupiter/saturn/apollo/mercury 各一条；"
+        "primary_hand 为惯用手（通常 right）；score 为 1-5 整数。",
     ]
     return "\n".join(parts)
 
@@ -289,13 +302,12 @@ def face_feature_system() -> str:
     )
 
 
-def _face_per_image_fields(slot: str, label: str) -> str:
+def _face_per_image_fields(slot: str) -> str:
     return (
         "{"
-        f'"slot":"{slot}","label":"{label}",'
+        f'"slot":"{slot}",'
         '"image_quality":"clear|blurry|shadowed|侧脸|未辨识",'
-        '"visible_parts":"可见部位简述",'
-        '"one_line_summary":"20字内客观描述"'
+        '"one_line_summary":"18字内最显眼特征"'
         "}"
     )
 
@@ -306,34 +318,27 @@ def _face_combined_fields() -> str:
         '"face_shape":"圆形|方形|长形|鹅蛋|菱形|其他",'
         '"three_sections":{"upper":"长|中|短","middle":"长|中|短","lower":"长|中|短"},'
         '"features":{'
-        '"eyebrows":"眉形与浓淡简述",'
-        '"eyes":"眼型与神采简述",'
-        '"nose":"鼻型简述",'
-        '"mouth":"口型与唇形简述",'
-        '"ears":"耳位与形态简述"'
+        '"eyebrows":"8字内","eyes":"8字内","nose":"8字内","mouth":"8字内","ears":"8字内"'
         "},"
-        '"complexion":"气色简述",'
-        '"special_marks":["痣|疤|纹|无"],'
-        '"one_line_summary":"综合20字内客观描述"'
+        '"complexion":"红润|明润|苍白|暗沉|偏黄|其他",'
+        '"special_marks":["痣|疤|纹|法令纹深|无"],'
+        '"one_line_summary":"30字内：面型+气色+三停+2五官"'
         "}"
     )
 
 
 def face_feature_user(*, slots: list[str]) -> str:
     slot_defs = {
-        "front": ("front", "正面照"),
-        "side": ("side", "侧面照"),
-        "extra": ("extra", "补充角度"),
+        "front": "正面照",
+        "side": "侧面照",
+        "extra": "补充角度",
     }
-    lines = ["按上传顺序观察下列照片，并输出 JSON："]
+    lines = ["按上传顺序观察照片，只输出 JSON："]
     for i, slot in enumerate(slots, start=1):
-        key, label = slot_defs.get(slot, (slot, f"图{i}"))
+        label = slot_defs.get(slot, f"图{i}")
         lines.append(f"第{i}张={label}")
 
-    per_items = ", ".join(
-        _face_per_image_fields(*slot_defs.get(s, (s, s)))
-        for s in slots
-    )
+    per_items = ", ".join(_face_per_image_fields(s) for s in slots)
     lines.append(
         "{"
         '"face_detected":true,'
@@ -341,56 +346,61 @@ def face_feature_user(*, slots: list[str]) -> str:
         f'"combined":{_face_combined_fields()}'
         "}"
     )
-    lines.append("综合特征应主要依据正面照，侧面与补充图用于补充耳、颌、轮廓等信息。看不清写「未辨识」。")
+    lines.append("combined 以正面为主；看不清填「未辨识」。")
     return "\n".join(lines)
 
 
 def _face_structured_interpret_fields() -> str:
     stop = (
-        '{"key":"upper|middle|lower","attribute":"2-4字特征词如丰隆|挺正|温厚",'
-        '"score":1-5,"description":"60-100字该停文化解读，不作医疗断语"}'
+        '{"key":"upper|middle|lower","attribute":"2-4字","score":1-5,'
+        '"description":"60-80字：引用三停特征+处事重心+1条建议"}'
     )
     organ = (
         '{"key":"brow|eye|nose|mouth|ear",'
-        '"keywords":["2字词","2字词"],'
-        '"status":"旺|盛|匀|平|弱",'
-        '"description":"40-60字该官文化解读，基于五官形态"}'
+        '"keywords":["2字","2字"],"status":"旺|盛|匀|平|弱",'
+        '"description":"45-60字：五官形质+倾向+提醒"}'
     )
     return (
         '"face_type":"金形面|木形面|水形面|火形面|土形面",'
-        '"complexion":"红润|明润|苍白|暗沉|偏黄|其他简述",'
-        '"overview":"面相综述，120-180字，综合三停五官与整体气质印象",'
+        '"complexion":"红润|明润|苍白|暗沉|偏黄|其他",'
+        '"overview":"120-150字：三停五官与行事含义，勿复述识象摘要",'
+        '"closing_summary":"80-100字：核心形质+近期重心+短板",'
+        '"advice_items":["可执行建议","共3-4条"],'
         f'"stops":[{stop},{stop},{stop}],'
         f'"organs":[{organ},{organ},{organ},{organ},{organ}]'
     )
 
 
+_FACE_INTERPRET_RULES = (
+    "写作要求：每条须「据特征…」再展开；写实质（表达风格、决策节奏、人际分寸、财业关注点）；"
+    "禁套话与医疗断语；不作绝对吉凶。"
+    + _ANTI_SOUP_RULES
+)
+
+
 def _face_structured_rules() -> str:
     return (
-        "stops 须含 upper、middle、lower 各一条且 key 不重复"
-        "（上停=发际至眉主早年，中停=眉至鼻底主中年，下停=鼻底至颏主晚年）；"
-        "organs 须含 brow、eye、nose、mouth、ear 各一条且 key 不重复；"
-        "organs.status 反映该官的端正与饱满程度；"
-        "score 为 1-5 整数，表该停形质的文化参考，非医学指标；"
+        "stops 须含 upper/middle/lower 各一条（上停=早年，中停=中年，下停=晚年）；"
+        "organs 须含 brow/eye/nose/mouth/ear 各一条；score 为 1-5 整数；"
         "解读须严格基于特征，不得臆造未见部位。"
     )
 
 
 def face_interpret_system() -> str:
     return (
-        SYSTEM_BASE
-        + "当前任务：面相文化解读。根据已给的结构化面部特征输出 JSON，"
-        "不得臆造特征中未出现的部位或标记；强调文化参考与心态建议，不作医疗诊断或绝对命运断语。"
-        "只输出 JSON，无 markdown、无说明。"
+        "你是面相文化解读师。用户已看到识象摘要与面型标签，overview 勿重复罗列特征。"
+        "据结构化特征输出 JSON：写行事倾向与可执行建议，像老师傅点脉，禁鸡汤套话。"
+        "不得臆造未见部位；不作医疗诊断或绝对命运断语。只输出 JSON。"
     )
 
 
-def face_interpret_user(*, features: str) -> str:
+def face_interpret_user(*, features: str, extract_overview: str) -> str:
     parts = [
-        "【面相特征（程序提取，请据此解读）】",
+        f"识象摘要（界面已展示，overview 勿复述）：{extract_overview}",
+        "【面相特征】",
         features,
-        "",
-        "请只输出 JSON（无 markdown 代码块），字段：",
+        _FACE_INTERPRET_RULES,
+        "只输出 JSON（无 markdown），字段：",
         "{" + _face_structured_interpret_fields() + "}",
         _face_structured_rules(),
     ]

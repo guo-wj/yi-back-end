@@ -32,6 +32,13 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def jwt_expires_in_seconds() -> int:
+    """返回 JWT 有效期（秒）；0 表示不设过期。"""
+    if settings.jwt_expire_days <= 0:
+        return 0
+    return settings.jwt_expire_days * 24 * 3600
+
+
 def _issue_token(user: dict) -> str:
     now = datetime.now(timezone.utc)
     payload = {
@@ -39,8 +46,9 @@ def _issue_token(user: dict) -> str:
         "email": user.get("email"),
         "phone": user.get("phone"),
         "iat": now,
-        "exp": now + timedelta(days=settings.jwt_expire_days),
     }
+    if settings.jwt_expire_days > 0:
+        payload["exp"] = now + timedelta(days=settings.jwt_expire_days)
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 

@@ -6,6 +6,7 @@ from datetime import date
 
 from services.deepseek_client import chat_completion
 from services.lottery_data import LOTTERY_SLIPS, SlipRecord
+from config import settings
 from services import prompts
 from utils.lunar import format_lunar_display, solar_to_lunar
 
@@ -47,13 +48,19 @@ async def interpret_slip(
         slip_tier=slip["tier"],
         slip_title=slip["title"],
         slip_poem=slip["poem"],
+        slip_gist=slip["gist"],
         solar_date=ctx.solar_date_str,
         lunar_hint=ctx.lunar_label,
         name=name,
         focus=focus,
         question=question,
     )
-    return await chat_completion(prompts.lottery_interpret_system(), user)
+    return await chat_completion(
+        prompts.lottery_interpret_system(),
+        user,
+        temperature=0.35,
+        max_tokens=settings.lottery_interpret_max_tokens,
+    )
 
 
 async def draw_only(

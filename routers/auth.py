@@ -8,6 +8,7 @@ from fastapi import APIRouter, Header
 
 from services import auth_db
 from services.auth_service import (
+    jwt_expires_in_seconds,
     login_account,
     register_account,
     send_code,
@@ -140,11 +141,9 @@ def _user_out(user: dict) -> UserOut:
 
 
 def _auth_response(user: dict, token: str) -> AuthTokenResponse:
-    from config import settings
-
     return AuthTokenResponse(
         token=token,
-        expires_in=settings.jwt_expire_days * 24 * 3600,
+        expires_in=jwt_expires_in_seconds(),
         user=_user_out(user),
     )
 

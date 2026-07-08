@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field, model_validator
 
+from config import settings
 from services import prompts
 from services.deepseek_client import chat_completion
 from datetime import datetime
@@ -100,7 +101,6 @@ async def divine_meihua(body: MeihuaRequest) -> MeihuaResponse:
     user = prompts.meihua_user(
         question=body.question,
         method_label=METHOD_LABELS[body.method],
-        method_detail=cast["method_detail"],
         ben_gua=_gua_label(cast["ben_gua"]),
         bian_gua=_gua_label(cast["bian_gua"]),
         hu_gua=_gua_label(cast["hu_gua"]),
@@ -108,7 +108,12 @@ async def divine_meihua(body: MeihuaRequest) -> MeihuaResponse:
         yong_trigram=cast["yong_trigram"],
         moving_line=cast["moving_line"],
     )
-    interpretation = await chat_completion(prompts.meihua_system(), user)
+    interpretation = await chat_completion(
+        prompts.meihua_system(),
+        user,
+        temperature=0.35,
+        max_tokens=settings.gua_interpret_max_tokens,
+    )
 
     return MeihuaResponse(
         **_cast_out(cast).model_dump(),

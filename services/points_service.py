@@ -7,6 +7,7 @@ import hashlib
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
+from config import settings
 from services import points_db
 
 # 注册与邀请
@@ -97,6 +98,10 @@ def _free_daily_for_feature(tier: str, feature: str) -> int:
 
 
 def _extract_daily_limit(tier: str, feature: str) -> int:
+    if feature == "palm":
+        return settings.palm_extract_daily
+    if feature == "face":
+        return settings.face_extract_daily
     key = f"{feature}_extract_daily"
     return int(MEMBER_TIERS.get(tier, MEMBER_TIERS["none"]).get(key, 3))
 

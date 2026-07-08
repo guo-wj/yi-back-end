@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from config import settings
 from services import prompts
 from services.deepseek_client import chat_completion
 from services.liuyao_data import cast_from_yao
@@ -63,9 +64,8 @@ def _build_prompt_context(body: CastRequest, cast: dict) -> tuple[str, str, str,
     moving_desc = (
         "、".join(f"第{p}爻" for p in moving) if moving else "无动爻（六爻皆静）"
     )
-    lines_desc = "\n".join(
-        f"第{ln['position']}爻：{ln['yao_value']} {ln['name']}"
-        f"（{'阳' if ln['is_yang'] else '阴'}{'，动' if ln['is_moving'] else ''}）"
+    lines_desc = "；".join(
+        f"第{ln['position']}爻{ln['name']}{'动' if ln['is_moving'] else ''}"
         for ln in cast["lines"]
     )
     return ben_label, bian_label or "", moving_desc, lines_desc
@@ -96,5 +96,10 @@ async def interpret_liuyao(body: CastRequest) -> InterpretResponse:
         moving_desc=moving_desc,
         lines_desc=lines_desc,
     )
-    interpretation = await chat_completion(prompts.liuyao_system(), user)
+    interpretation = await chat_completion(
+        prompts.liuyao_system(),
+        user,
+        temperature=0.35,
+        max_tokens=settings.gua_interpret_max_tokens,
+    )
     return InterpretResponse(interpretation=interpretation)

@@ -26,6 +26,7 @@ class SlipOut(BaseModel):
     tier: str = Field(..., description="签等等第（文化语境，非断言）")
     title: str = Field(..., description="签题")
     poem: str = Field(..., description="签诗（四句）")
+    gist: str = Field(..., description="签文简解（传统解曰，免费展示）")
 
 
 class LotteryDrawRequest(BaseModel):
@@ -79,6 +80,7 @@ async def draw_lottery(
             tier=slip["tier"],
             title=slip["title"],
             poem=slip["poem"],
+            gist=slip["gist"],
         ),
     )
 
@@ -105,6 +107,7 @@ async def interpret_lottery(
             tier=slip["tier"],
             title=slip["title"],
             poem=slip["poem"],
+            gist=slip["gist"],
         ),
         interpretation=interpretation,
     )

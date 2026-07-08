@@ -26,8 +26,13 @@ app.include_router(api_router)
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health() -> dict[str, str | bool]:
+    """健康检查；vision_configured / deepseek_configured 便于排查部署漏配 Key。"""
+    return {
+        "status": "ok",
+        "vision_configured": bool(settings.vision_api_key),
+        "deepseek_configured": bool(settings.deepseek_api_key),
+    }
 
 
 @app.exception_handler(ValueError)
