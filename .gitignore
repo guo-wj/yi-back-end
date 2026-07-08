@@ -12,3 +12,7 @@ wheels/
 # SQLite 数据库
 *.db
 .env
+
+# 本地部署配置（含服务器地址，勿上传）
+deploy.local.env
+deploy.local.env.example
