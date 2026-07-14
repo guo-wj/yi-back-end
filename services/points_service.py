@@ -206,10 +206,27 @@ def compute_cost(
     return base, paid, False
 
 
+async def ensure_referral_code(user_id: int) -> str:
+    """确保用户拥有唯一邀请码（含老用户补全）。"""
+    record = await asyncio.to_thread(points_db.ensure_user_points, user_id)
+    existing = record.get("referral_code")
+    if existing:
+        return str(existing)
+
+    code = _gen_referral_code(user_id)
+    for _ in range(8):
+        conflict = await asyncio.to_thread(points_db.get_user_by_referral_code, code)
+        if not conflict or int(conflict["user_id"]) == user_id:
+            await asyncio.to_thread(points_db.set_referral_code, user_id, code)
+            return code
+        code = _gen_referral_code(user_id)
+    await asyncio.to_thread(points_db.set_referral_code, user_id, code)
+    return code
+
+
 async def setup_new_user(user_id: int, invite_code: str | None = None) -> dict:
     """新用户初始化账户、注册礼、邀请奖励。"""
-    code = _gen_referral_code(user_id)
-    record = await asyncio.to_thread(points_db.ensure_user_points, user_id, code)
+    await ensure_referral_code(user_id)
 
     await grant_points(
         user_id,
@@ -217,6 +234,7 @@ async def setup_new_user(user_id: int, invite_code: str | None = None) -> dict:
         note="新用户注册礼",
         tx_type="grant",
         feature="register",
+        idempotency_key=f"register:{user_id}",
     )
 
     if invite_code and invite_code.strip():
@@ -315,8 +333,42 @@ async def _maybe_grant_member_monthly(user_id: int, tier: str) -> None:
     await asyncio.to_thread(points_db.set_member_grant_month, user_id, month)
 
 
+async def validate_invite_code(code: str, *, user_id: int | None = None) -> dict:
+    normalized = code.strip().upper()
+    if not normalized:
+        return {"valid": False, "message": "请输入邀请码。"}
+
+    inviter = await asyncio.to_thread(points_db.get_user_by_referral_code, normalized)
+    if not inviter:
+        return {"valid": False, "message": "邀请码无效或不存在。"}
+    if user_id is not None and int(inviter["user_id"]) == user_id:
+        return {"valid": False, "message": "不能使用自己的邀请码。"}
+    return {"valid": True, "message": "邀请码有效。"}
+
+
+async def get_invite_stats(user_id: int) -> dict:
+    referral_code = await ensure_referral_code(user_id)
+    invite_count = await asyncio.to_thread(points_db.count_successful_invites, user_id)
+    monthly_grants = await asyncio.to_thread(points_db.count_inviter_grants_this_month, user_id)
+    points_this_month = monthly_grants * INVITER_BONUS
+    return {
+        "referral_code": referral_code,
+        "invite_count": invite_count,
+        "points_earned_total": invite_count * INVITER_BONUS,
+        "points_earned_this_month": points_this_month,
+        "monthly_cap": INVITER_MONTHLY_CAP,
+        "monthly_cap_remaining": max(0, INVITER_MONTHLY_CAP - points_this_month),
+        "invitee_bonus": INVITEE_BONUS,
+        "inviter_bonus": INVITER_BONUS,
+        "register_bonus": REGISTER_BONUS,
+    }
+
+
 async def get_balance(user_id: int) -> dict:
-    record = await asyncio.to_thread(points_db.ensure_user_points, user_id)
+    referral_code = await ensure_referral_code(user_id)
+    record = await asyncio.to_thread(points_db.get_user_points, user_id)
+    if not record:
+        record = await asyncio.to_thread(points_db.ensure_user_points, user_id, referral_code)
     tier = _effective_member_tier(record)
     if tier != record.get("member_tier"):
         await asyncio.to_thread(points_db.set_member, user_id, "none", None)
@@ -335,7 +387,7 @@ async def get_balance(user_id: int) -> dict:
         "member_label": MEMBER_TIERS.get(tier, MEMBER_TIERS["none"])["label"],
         "member_discount": discount,
         "member_expire_at": record.get("member_expire_at"),
-        "referral_code": record.get("referral_code"),
+        "referral_code": record.get("referral_code") or referral_code,
         "checkin_streak": int(record.get("checkin_streak") or 0),
         "last_checkin_date": record.get("last_checkin_date"),
     }

@@ -396,6 +396,19 @@ def count_inviter_grants_this_month(inviter_id: int) -> int:
         return int(row["c"]) if row else 0
 
 
+def count_successful_invites(inviter_id: int) -> int:
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM invite_rewards
+            WHERE inviter_id = ? AND invitee_granted = 1
+            """,
+            (inviter_id,),
+        ).fetchone()
+        return int(row["c"]) if row else 0
+
+
 def create_payment_order(
     user_id: int,
     order_type: str,

@@ -223,15 +223,44 @@ def _line_preview_attribute(line: Any) -> str:
     return " · ".join(parts) if parts else "—"
 
 
-_LINE_LENGTH_HINT: dict[str, str] = {
-    "长": "偏长，耐力与续航较好，习惯把事情做到底",
-    "中": "长度适中，进退有度，不轻易冒进也不轻易放弃",
-    "短": "偏短，决策明快，更倾向短平快的事务节奏",
-}
-_LINE_CLARITY_HINT: dict[str, str] = {
-    "清晰": "纹线清楚，心性较稳，思路不易被外界带偏",
-    "一般": "纹线尚可，遇压力时需刻意稳住节奏",
-    "模糊": "纹线略浅，宜减少多线并行，先聚焦一件要事",
+# 按线别+长短/清晰分别释义，避免三线特征值相同时文案雷同
+_LINE_HINTS: dict[PalmLineKey, dict[str, dict[str, str]]] = {
+    "life": {
+        "length": {
+            "长": "偏长，体质底子与抗压续航较好，做事肯熬",
+            "中": "长度适中，体力节奏平稳，宜劳逸搭配",
+            "短": "偏短，爆发力强但不宜长期透支，注意休息",
+        },
+        "clarity": {
+            "清晰": "纹路清楚，行动有章法，遇变故不易乱阵脚",
+            "一般": "纹路尚可，压力大时更需守作息边界",
+            "模糊": "纹路偏浅，宜少同时开多条战线",
+        },
+    },
+    "head": {
+        "length": {
+            "长": "偏长，思虑周全，分析细但有时易想多",
+            "中": "长度适中，理性能落地，想法与执行较平衡",
+            "短": "偏短，决断干脆，适合短周期攻坚不宜过度纠结",
+        },
+        "clarity": {
+            "清晰": "纹路清楚，条理分明，不易被琐事带偏",
+            "一般": "纹路尚可，信息过载时宜主动做减法",
+            "模糊": "纹路偏浅，决策前宜写下要点再行动",
+        },
+    },
+    "heart": {
+        "length": {
+            "长": "偏长，重情义、共情深，亲密关系投入多",
+            "中": "长度适中，情感表达有分寸，能进能退",
+            "短": "偏短，表达偏直，不喜拖泥带水的感情拉锯",
+        },
+        "clarity": {
+            "清晰": "纹路清楚，心意较明确，人际边界感尚可",
+            "一般": "纹路尚可，关系里宜把期待说清楚",
+            "模糊": "纹路偏浅，情绪起伏时不宜冲动表态",
+        },
+    },
 }
 _MOUNT_STATUS_HINT: dict[str, str] = {
     "隆起": "隆起饱满，该领域精力投入多、存在感强",
@@ -245,10 +274,10 @@ def _line_preview_hint(key: PalmLineKey, line: dict[str, Any]) -> str:
     length = str(line.get("length") or "中")
     clarity = str(line.get("clarity") or "一般")
     trend = str(line.get("trend") or "").strip()
-    parts = [
-        f"{name_cn}{_LINE_LENGTH_HINT.get(length, '长度适中')}",
-        _LINE_CLARITY_HINT.get(clarity, ""),
-    ]
+    table = _LINE_HINTS[key]
+    length_hint = table["length"].get(length, "长度适中")
+    clarity_hint = table["clarity"].get(clarity, "")
+    parts = [f"{name_cn}{length_hint}", clarity_hint]
     if trend:
         parts.append(f"走势{trend}")
     return "；".join(p for p in parts if p) + "。"

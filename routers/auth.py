@@ -31,6 +31,7 @@ class SendCodeResponse(BaseModel):
 class VerifyCodeRequest(BaseModel):
     email: EmailStr = Field(..., description="邮箱")
     code: str = Field(..., min_length=4, max_length=8, description="收到的验证码")
+    invite_code: str | None = Field(default=None, max_length=32, description="邀请码（选填）")
 
 
 class UserOut(BaseModel):
@@ -160,7 +161,7 @@ async def auth_verify_code(body: VerifyCodeRequest) -> VerifyCodeResponse:
 
     user, is_new, token = await verify_code(body.email, body.code)
     if is_new:
-        await setup_new_user(user["id"], None)
+        await setup_new_user(user["id"], body.invite_code)
     return VerifyCodeResponse(
         token=token,
         is_new_user=is_new,
@@ -204,11 +205,14 @@ async def auth_me(authorization: str | None = Header(default=None)) -> UserOut:
 @router.post("/register-email", response_model=AuthTokenResponse, deprecated=True)
 async def auth_register_email(body: AccountRegisterRequest) -> AuthTokenResponse:
     """（兼容）邮箱注册，请使用 POST /register。"""
+    from services.points_service import setup_new_user
+
     user, token = await register_account(
         body.resolved_account(),
         body.password,
         body.invite_code,
     )
+    await setup_new_user(user["id"], body.invite_code)
     return _auth_response(user, token)
 
 
