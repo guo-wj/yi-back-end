@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "yi-backend"
 version = "0.1.0"
-description = "易鉴 AI 玄学平台后端"
+description = "知几 AI 玄学平台后端"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

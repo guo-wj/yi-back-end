@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-易鉴 (Yi) — FastAPI backend for an AI 玄学 (Chinese metaphysics/divination) platform. Each feature (灵签/六爻/梅花/紫微/八字/老黄历/掌纹/面相) computes a deterministic result from traditional rules, then asks an LLM to write the interpretation. Code comments are in Chinese; match that when editing.
+知几 (Zhiji) — FastAPI backend for an AI 玄学 (Chinese metaphysics/divination) platform. Each feature (灵签/六爻/梅花/紫微/八字/老黄历/掌纹/面相) computes a deterministic result from traditional rules, then asks an LLM to write the interpretation. Code comments are in Chinese; match that when editing.
 
 ## Commands
 

@@ -12,7 +12,7 @@ class Settings:
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-    app_name: str = os.getenv("APP_NAME", "易鉴后端")
+    app_name: str = os.getenv("APP_NAME", "知几后端")
     debug: bool = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
 
     # Redis（验证码存储）
@@ -25,7 +25,7 @@ class Settings:
     smtp_password: str = os.getenv("SMTP_PASSWORD", "")
     # 显示发件人，未配置时回退为登录账号
     smtp_from: str = os.getenv("SMTP_FROM", "") or os.getenv("SMTP_USER", "")
-    smtp_from_name: str = os.getenv("SMTP_FROM_NAME", "易鉴")
+    smtp_from_name: str = os.getenv("SMTP_FROM_NAME", "知几")
     # 465 用 SSL，587 用 STARTTLS
     smtp_use_ssl: bool = os.getenv("SMTP_USE_SSL", "true").lower() in ("1", "true", "yes")
 

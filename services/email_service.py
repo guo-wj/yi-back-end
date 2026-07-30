@@ -16,7 +16,7 @@ from config import settings
 def _build_message(to_email: str, code: str) -> EmailMessage:
     minutes = max(1, settings.code_ttl_seconds // 60)
     msg = EmailMessage()
-    msg["Subject"] = "【易鉴】邮箱验证码"
+    msg["Subject"] = "【知几】邮箱验证码"
     msg["From"] = formataddr((settings.smtp_from_name, settings.smtp_from))
     msg["To"] = to_email
 
@@ -27,7 +27,7 @@ def _build_message(to_email: str, code: str) -> EmailMessage:
     )
     html = f"""\
 <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:auto">
-  <h2 style="color:#7a5c2e">易鉴 · 邮箱验证</h2>
+  <h2 style="color:#7a5c2e">知几 · 邮箱验证</h2>
   <p>您的验证码是：</p>
   <p style="font-size:32px;font-weight:700;letter-spacing:8px;color:#b8860b">{code}</p>
   <p style="color:#666">有效期 {minutes} 分钟，请尽快完成验证。若非本人操作，请忽略本邮件。</p>

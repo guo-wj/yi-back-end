@@ -38,7 +38,7 @@ MEMBER_TIERS: dict[str, dict] = {
         "face_extract_daily": 10,
     },
     "yiyou": {
-        "label": "易友",
+        "label": "知友",
         "discount": 0.9,
         "monthly_points": 200,
         "price_cents": 1800,
@@ -52,7 +52,7 @@ MEMBER_TIERS: dict[str, dict] = {
         "face_extract_daily": 10,
     },
     "yishi": {
-        "label": "易师",
+        "label": "知师",
         "discount": 0.8,
         "monthly_points": 500,
         "price_cents": 3800,
@@ -66,7 +66,7 @@ MEMBER_TIERS: dict[str, dict] = {
         "face_extract_daily": 10,
     },
     "yizun": {
-        "label": "易尊",
+        "label": "知尊",
         "discount": 0.7,
         "monthly_points": 1000,
         "price_cents": 6800,
